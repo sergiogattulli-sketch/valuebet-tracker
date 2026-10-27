@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ValueBet Dashboard & WebApp - Bet365</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- SheetJS per leggere e scrivere file Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js per i grafici -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: #0f172a !important; color: #f8fafc !important; }
+            canvas { max-width: 100% !important; height: auto !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 shadow-lg py-4 px-6 flex flex-col md:flex-row justify-between items-center gap-4 no-print">
+        <div class="flex items-center space-x-3">
+            <div class="bg-emerald-500 text-slate-950 p-2.5 rounded-xl font-bold text-xl flex items-center justify-center shadow-md">
+                <i class="fa-solid fa-chart-line"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-extrabold tracking-wide text-white">ValueBet Tracker & Analyzer</h1>
+                <p class="text-xs text-slate-400">Tracker Professionale & Statistiche Avanzate</p>
+            </div>
+        </div>
+
+        <!-- Navigazione Tab -->
+        <div class="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-700">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-slate-950 transition">
+                <i class="fa-solid fa-chart-pie mr-1.5"></i> Dashboard
+            </button>
+            <button onclick="switchTab('statistics')" id="tab-statistics" class="px-4 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-chart-bar mr-1.5"></i> Statistiche Dettagliate
+            </button>
+            <button onclick="switchTab('markets')" id="tab-markets" class="px-4 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-tags mr-1.5"></i> Analisi Mercati
+            </button>
+        </div>
+
+        <!-- Azioni Header -->
+        <div class="flex flex-wrap items-center gap-2">
+            <button onclick="openModal()" class="text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3 py-2 rounded-xl transition shadow flex items-center">
+                <i class="fa-solid fa-plus mr-1.5"></i> Nuova Scommessa
+            </button>
+            <button onclick="exportToExcel()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-2 rounded-xl transition shadow flex items-center">
+                <i class="fa-solid fa-file-excel mr-1.5"></i> Esporta Excel
+            </button>
+            <button onclick="printReport()" class="text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 py-2 rounded-xl transition shadow flex items-center">
+                <i class="fa-solid fa-file-pdf mr-1.5"></i> Stampa / PDF
+            </button>
+            <div class="flex items-center space-x-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700">
+                <label for="excelFileInput" class="cursor-pointer text-xs text-emerald-400 hover:underline flex items-center">
+                    <i class="fa-solid fa-upload mr-1"></i> Carica Excel
+                </label>
+                <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="hidden" onchange="handleFileSelect(event)">
+                <span id="fileNameDisplay" class="text-[11px] text-slate-400 truncate max-w-[100px]"></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-7xl space-y-8">
+        
+        <!-- VISTA 1: DASHBOARD PRINCIPALE -->
+        <div id="view-dashboard" class="space-y-8">
+            <!-- KPI Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Totale Puntato</span>
+                    <div id="kpiTotalStaked" class="text-2xl font-extrabold text-white mt-2">€ 0.00</div>
+                    <div id="kpiCountText" class="text-xs text-emerald-400 mt-2"><i class="fa-solid fa-arrow-up mr-1"></i> 0 scommesse registrate</div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Profitto Reale Totale</span>
+                    <div id="kpiTotalProfit" class="text-2xl font-extrabold text-emerald-400 mt-2">€ 0.00</div>
+                    <div class="text-xs text-slate-400 mt-2">Rendimento effettivo complessivo</div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Guadagno Atteso Totale (EV)</span>
+                    <div id="kpiExpectedProfit" class="text-2xl font-extrabold text-blue-400 mt-2">€ 0.00</div>
+                    <div class="text-xs text-blue-300 mt-2">Valore atteso statistico cumulato</div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Rendimento Atteso Medio</span>
+                    <div id="kpiExpectedYield" class="text-2xl font-extrabold text-purple-400 mt-2">0.0%</div>
+                    <div class="text-xs text-slate-400 mt-2">Margine di valore medio atteso</div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">ROI Reale (%)</span>
+                    <div id="kpiRoi" class="text-2xl font-extrabold text-emerald-400 mt-2">0.00%</div>
+                    <div class="text-xs text-slate-400 mt-2">Return on Investment effettivo</div>
+                </div>
+            </div>
+
+            <!-- Sezione Grafici -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl lg:col-span-2">
+                    <h2 class="text-base font-bold text-emerald-400 mb-4 flex items-center">
+                        <i class="fa-solid fa-chart-area mr-2"></i> Confronto Cumulativo: Guadagno Reale vs Rendimento Atteso nel Tempo
+                    </h2>
+                    <div class="relative h-80 w-full">
+                        <canvas id="timeSeriesChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                    <h2 class="text-base font-bold text-emerald-400 mb-4 flex items-center">
+                        <i class="fa-solid fa-calendar-days mr-2"></i> Profitto per Mese
+                    </h2>
+                    <div class="relative h-64 w-full">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                    <h2 class="text-base font-bold text-emerald-400 mb-4 flex items-center">
+                        <i class="fa-solid fa-trophy mr-2"></i> Profitto per Campionato
+                    </h2>
+                    <div class="relative h-64 w-full">
+                        <canvas id="leagueChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                    <h2 class="text-base font-bold text-emerald-400 mb-4 flex items-center">
+                        <i class="fa-solid fa-building-columns mr-2"></i> Profitto per Bookmaker
+                    </h2>
+                    <div class="relative h-64 w-full">
+                        <canvas id="bookmakerChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                    <h2 class="text-base font-bold text-emerald-400 mb-4 flex items-center">
+                        <i class="fa-solid fa-tags mr-2"></i> Profitto per Tipologia Mercato
+                    </h2>
+                    <div class="relative h-64 w-full">
+                        <canvas id="marketTypeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toolbar / Filtri Avanzati -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-lg flex flex-col lg:flex-row justify-between items-center gap-4 no-print">
+                <div class="relative w-full lg:w-64">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                        <i class="fa-solid fa-search"></i>
+                    </span>
+                    <input type="text" id="searchInput" placeholder="Cerca partita, scommessa..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition" oninput="applyFilters()">
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs text-slate-400">Campionato:</label>
+                        <select id="filterLeague" onchange="applyFilters()" class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500">
+                            <option value="Tutti">Tutti i Campionati</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs text-slate-400">Anno:</label>
+                        <select id="filterYear" onchange="applyFilters()" class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500">
+                            <option value="Tutti">Tutti</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs text-slate-400">Mese:</label>
+                        <select id="filterMonth" onchange="applyFilters()" class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500">
+                            <option value="Tutti">Tutti</option>
+                            <option value="01">Gen</option>
+                            <option value="02">Feb</option>
+                            <option value="03">Mar</option>
+                            <option value="04">Apr</option>
+                            <option value="05">Mag</option>
+                            <option value="06">Giu</option>
+                            <option value="07">Lug</option>
+                            <option value="08">Ago</option>
+                            <option value="09">Set</option>
+                            <option value="10">Ott</option>
+                            <option value="11">Nov</option>
+                            <option value="12">Dic</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs text-slate-400">Fascia Quota:</label>
+                        <select id="filterOddsRange" onchange="applyFilters()" class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500">
+                            <option value="Tutti">Tutte le Quote</option>
+                            <option value="bassa">Bassa (&lt; 1.50)</option>
+                            <option value="media">Media (1.51 - 1.79)</option>
+                            <option value="alta">Alta (&gt; 1.80)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs text-slate-400">Fascia EV (%):</label>
+                        <select id="filterEvRange" onchange="applyFilters()" class="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500">
+                            <option value="Tutti">Tutti gli EV</option>
+                            <option value="basso">Basso (&lt; 3%)</option>
+                            <option value="medio">Medio (3% - 7%)</option>
+                            <option value="alto">Alto (&gt; 7%)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex space-x-2 w-full lg:w-auto justify-end">
+                    <button onclick="filterStatus('Tutti')" id="btn-all" class="px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500 text-slate-950 transition">Tutte</button>
+                    <button onclick="filterStatus('Vinta')" id="btn-win" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition">Vinte</button>
+                    <button onclick="filterStatus('Persa')" id="btn-loss" class="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition">Perse</button>
+                </div>
+            </div>
+
+            <!-- Tabella Storico Scommesse -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-xl overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-700 flex justify-between items-center">
+                    <h2 class="text-base font-bold text-emerald-400 flex items-center">
+                        <i class="fa-solid fa-table-list mr-2"></i> Elenco Storico Scommesse
+                    </h2>
+                    <span id="rowCount" class="text-xs text-slate-400">Carica un file Excel o aggiungi una scommessa</span>
+                </div>
+                <div class="overflow-x-auto max-h-[500px]">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-slate-900/90 sticky top-0 text-slate-400 uppercase text-[11px] tracking-wider border-b border-slate-700 z-10">
+                            <tr>
+                                <th class="py-3 px-4">Data</th>
+                                <th class="py-3 px-4">Campionato</th>
+                                <th class="py-3 px-4">Bookmaker</th>
+                                <th class="py-3 px-4">Partita</th>
+                                <th class="py-3 px-4">Scommessa</th>
+                                <th class="py-3 px-4 text-right">Puntata</th>
+                                <th class="py-3 px-4 text-right">Quota</th>
+                                <th class="py-3 px-4 text-right">Mercato</th>
+                                <th class="py-3 px-4 text-right">Rend. Atteso (%)</th>
+                                <th class="py-3 px-4 text-right">Rend. Atteso (€)</th>
+                                <th class="py-3 px-4 text-center">Esito</th>
+                                <th class="py-3 px-4 text-right">Guadagno Reale</th>
+                            </tr>
+                        </thead>
+                        <tbody id="betsTableBody" class="divide-y divide-slate-700/50 text-slate-300 text-xs">
+                            <tr>
+                                <td colspan="12" class="text-center py-8 text-slate-500">Nessuna scommessa presente. Usa il pulsante in alto per aggiungerne una o carica un Excel.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISTA 2: PAGINA STATISTICHE DETTAGLIATE -->
+        <div id="view-statistics" class="space-y-8 hidden">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                <h2 class="text-lg font-bold text-emerald-400 mb-2 flex items-center">
+                    <i class="fa-solid fa-chart-bar mr-2"></i> Report Analitico e Statistiche di Performance
+                </h2>
+                <p class="text-xs text-slate-400 mb-6">Panoramica dettagliata aggregata per giorno della settimana, campionato, bookmaker e tipologia mercato.</p>
+
+                <!-- Griglia Statistiche Globali Secondarie -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                        <span class="text-xs text-slate-400 uppercase font-bold">Win Rate Globale</span>
+                        <div id="statWinRate" class="text-xl font-extrabold text-white mt-1">0.0%</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                        <span class="text-xs text-slate-400 uppercase font-bold">Quota Media Giocata</span>
+                        <div id="statAvgOdds" class="text-xl font-extrabold text-white mt-1">0.00</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                        <span class="text-xs text-slate-400 uppercase font-bold">Quota Media Mercato</span>
+                        <div id="statAvgMarket" class="text-xl font-extrabold text-white mt-1">0.00</div>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+                        <span class="text-xs text-slate-400 uppercase font-bold">Scommesse Totali</span>
+                        <div id="statTotalBets" class="text-xl font-extrabold text-white mt-1">0</div>
+                    </div>
+                </div>
+
+                <!-- Tabella Breakdown per Giorno della Settimana -->
+                <div class="space-y-6 mb-8">
+                    <div>
+                        <h3 class="text-sm font-bold text-white mb-3 flex items-center">
+                            <i class="fa-solid fa-calendar-day text-emerald-400 mr-2"></i> Performance per Giorno della Settimana
+                        </h3>
+                        <div class="overflow-x-auto rounded-xl border border-slate-700">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700">
+                                    <tr>
+                                        <th class="py-3 px-4">Giorno</th>
+                                        <th class="py-3 px-4 text-center">N° Scommesse</th>
+                                        <th class="py-3 px-4 text-right">Totale Puntato</th>
+                                        <th class="py-3 px-4 text-right">Profitto Reale</th>
+                                        <th class="py-3 px-4 text-right">EV Atteso (€)</th>
+                                        <th class="py-3 px-4 text-right">ROI Reale (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dayOfWeekTableBody" class="divide-y divide-slate-700/50 text-slate-300">
+                                    <tr><td colspan="6" class="text-center py-4 text-slate-500">Nessun dato disponibile</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabella Breakdown per Campionato -->
+                <div class="space-y-6 mb-8">
+                    <div>
+                        <h3 class="text-sm font-bold text-white mb-3 flex items-center">
+                            <i class="fa-solid fa-trophy text-emerald-400 mr-2"></i> Performance per Campionato
+                        </h3>
+                        <div class="overflow-x-auto rounded-xl border border-slate-700">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700">
+                                    <tr>
+                                        <th class="py-3 px-4">Campionato</th>
+                                        <th class="py-3 px-4 text-center">N° Scommesse</th>
+                                        <th class="py-3 px-4 text-right">Totale Puntato</th>
+                                        <th class="py-3 px-4 text-right">Profitto Reale</th>
+                                        <th class="py-3 px-4 text-right">EV Atteso (€)</th>
+                                        <th class="py-3 px-4 text-right">ROI Reale (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leagueTableBody" class="divide-y divide-slate-700/50 text-slate-300">
+                                    <tr><td colspan="6" class="text-center py-4 text-slate-500">Nessun dato disponibile</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabella Breakdown per Bookmaker e Mercato -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-sm font-bold text-white mb-3 flex items-center">
+                            <i class="fa-solid fa-building-columns text-emerald-400 mr-2"></i> Performance per Bookmaker
+                        </h3>
+                        <div class="overflow-x-auto rounded-xl border border-slate-700">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700">
+                                    <tr>
+                                        <th class="py-3 px-3">Bookmaker</th>
+                                        <th class="py-3 px-3 text-center">N°</th>
+                                        <th class="py-3 px-3 text-right">Puntato</th>
+                                        <th class="py-3 px-3 text-right">Profitto</th>
+                                        <th class="py-3 px-3 text-right">ROI (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bookmakerTableBody" class="divide-y divide-slate-700/50 text-slate-300">
+                                    <tr><td colspan="5" class="text-center py-4 text-slate-500">Nessun dato</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-bold text-white mb-3 flex items-center">
+                            <i class="fa-solid fa-tags text-emerald-400 mr-2"></i> Top 10 Mercati
+                        </h3>
+                        <div class="overflow-x-auto rounded-xl border border-slate-700">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead class="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700">
+                                    <tr>
+                                        <th class="py-3 px-3">Mercato</th>
+                                        <th class="py-3 px-3 text-center">N°</th>
+                                        <th class="py-3 px-3 text-right">Puntato</th>
+                                        <th class="py-3 px-3 text-right">Profitto</th>
+                                        <th class="py-3 px-3 text-right">ROI (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="marketTableBody" class="divide-y divide-slate-700/50 text-slate-300">
+                                    <tr><td colspan="5" class="text-center py-4 text-slate-500">Nessun dato</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- VISTA 3: PAGINA DEDICATA ANALISI MERCATI -->
+        <div id="view-markets" class="space-y-8 hidden">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-emerald-400 flex items-center">
+                            <i class="fa-solid fa-tags mr-2"></i> Analisi Dettagliata per Tipologia di Mercato
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Report completo di performance aggregato per ogni singola tipologia di scommessa e mercato giocato.</p>
+                    </div>
+                    <div class="relative w-full md:w-64">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <i class="fa-solid fa-search"></i>
+                        </span>
+                        <input type="text" id="searchMarketInput" placeholder="Cerca mercato..." class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition" oninput="renderMarketsPage()">
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-xl border border-slate-700">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-900 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-700">
+                            <tr>
+                                <th class="py-3 px-4">Tipologia Mercato</th>
+                                <th class="py-3 px-4 text-center">N° Scommesse</th>
+                                <th class="py-3 px-4 text-center">Win Rate (%)</th>
+                                <th class="py-3 px-4 text-center">EV Atteso Medio (%)</th>
+                                <th class="py-3 px-4 text-right">Quota Media</th>
+                                <th class="py-3 px-4 text-right">Totale Puntato</th>
+                                <th class="py-3 px-4 text-right">Profitto Reale</th>
+                                <th class="py-3 px-4 text-right">ROI Reale (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailedMarketTableBody" class="divide-y divide-slate-700/50 text-slate-300">
+                            <tr><td colspan="8" class="text-center py-4 text-slate-500">Nessun dato</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modale Inserimento Nuova Scommessa -->
+    <div id="betModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                <h3 class="text-lg font-bold text-emerald-400 flex items-center">
+                    <i class="fa-solid fa-circle-plus mr-2"></i> Aggiungi Nuova Scommessa
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <form id="newBetForm" onsubmit="addNewBet(event)" class="space-y-4 text-sm">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Data</label>
+                        <input type="date" id="inputDate" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Campionato / Lega</label>
+                        <input type="text" id="inputLeague" placeholder="es. Serie A" value="Serie A" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Bookmaker</label>
+                        <input type="text" id="inputBook" value="bet365" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Partita</label>
+                        <input type="text" id="inputMatch" placeholder="es. Inter - Milan" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Scommessa (Mercato scelto)</label>
+                    <input type="text" id="inputBet" placeholder="es. Over 2.5" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Puntata (€)</label>
+                        <input type="number" step="0.01" id="inputStake" value="10.00" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Quota Punta</label>
+                        <input type="number" step="0.01" id="inputOdds" placeholder="2.00" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Quota Mercato</label>
+                        <input type="number" step="0.01" id="inputMarket" placeholder="1.80" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Esito</label>
+                        <select id="inputResult" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                            <option value="Vinta">Vinta</option>
+                            <option value="Persa">Persa</option>
+                            <option value="Rimborso">Rimborso (Void)</option>
+                            <option value="Metà Vinta">Metà Vinta (Half Win)</option>
+                            <option value="Metà Persa">Metà Persa (Half Loss)</option>
+                            <option value="In attesa">In attesa</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Guadagno Reale (€)</label>
+                        <input type="number" step="0.01" id="inputProfit" placeholder="es. 10.00 o -10.00" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-3 border-t border-slate-700">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">Annulla</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold hover:bg-emerald-400 transition">Salva Scommessa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 border-t border-slate-700 py-4 text-center text-xs text-slate-500">
+        ValueBet WebApp &bull; Salvataggio Locale & Statistiche Avanzate
+    </footer>
+
+    <!-- Script di gestione -->
+    <script>
+        let betsData = [];
+        let currentFilter = 'Tutti';
+        let timeChart = null;
+        let monthlyChart = null;
+        let leagueChart = null;
+        let bookmakerChart = null;
+        let marketTypeChart = null;
+
+        document.getElementById('inputDate').valueAsDate = new Date();
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedData = localStorage.getItem('valuebet_tracker_data_v2');
+            if (savedData) {
+                try {
+                    betsData = JSON.parse(savedData);
+                    if (Array.isArray(betsData) && betsData.length > 0) {
+                        populateFiltersDropdowns();
+                        initDashboard();
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Errore nel parsing del localStorage, reset in corso...", e);
+                    localStorage.removeItem('valuebet_tracker_data_v2');
+                    betsData = [];
+                }
+            }
+
+            // Se il localStorage è vuoto o non ha dati, carica l'Excel di default dal server
+            loadDefaultExcelFromServer('elenco_scommesse.xlsx');
+        });
+
+        function loadDefaultExcelFromServer(filename) {
+            fetch(filename)
+                .then(response => {
+                    if (!response.ok) throw new Error("File Excel predefinito non trovato sul server.");
+                    return response.arrayBuffer();
+                })
+                .then(arrayBuffer => {
+                    const data = new Uint8Array(arrayBuffer);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                    parseRowsAndSetData(jsonRows);
+                })
+                .catch(error => {
+                    console.log("Nessun file Excel predefinito trovato o errore nel caricamento:", error);
+                    initDashboard();
+                });
+        }
+
+        function parseRowsAndSetData(jsonRows) {
+            const parseNum = (val) => {
+                if (typeof val === 'number') return val;
+                if (!val) return 0;
+                let cleanStr = val.toString().replace(/[€%\s]/g, '').replace(',', '.');
+                return parseFloat(cleanStr) || 0;
+            };
+
+            betsData = [];
+            
+            jsonRows.forEach(r => {
+                const match = r['Partita'] || r['partita'] || r['Match'] || '';
+                if (!match || String(match).trim() === '') return;
+
+                let rawDate = r['Giorno e Mese'] || r['Data e Ora'] || r['Data'] || '';
+                let parsedDate = '';
+
+                if (typeof rawDate === 'number') {
+                    const utcDays = Math.floor(rawDate - 25569);
+                    parsedDate = new Date(utcDays * 86400 * 1000).toISOString().split('T')[0];
+                } else if (rawDate) {
+                    parsedDate = String(rawDate).split(' ')[0];
+                }
+
+                betsData.push({
+                    date: parsedDate,
+                    league: String(r['Campionato'] || r['Lega'] || r['Tournament'] || 'Altro'),
+                    book: String(r['Bookmaker'] || r['Book'] || 'bet365'),
+                    match: String(match),
+                    bet: String(r['Scommessa'] || r['Mercato'] || ''),
+                    stake: parseNum(r['Importo Puntata'] || r['Puntata'] || r['Abbinato']),
+                    yieldPct: parseNum(r['Rendimento Atteso (%)']),
+                    odds: parseNum(r['Quota Punta'] || r['Quota']),
+                    market: parseNum(r['Quota Mercato']),
+                    result: String(r['Risultato'] || r['Esito'] || 'In attesa'),
+                    profit: parseNum(r['Guadagno Reale'] || r['Profitto']),
+                    yieldEur: parseNum(r['Rendimento Atteso (€)'])
+                });
+            });
+
+            saveToLocalStorage();
+            populateFiltersDropdowns();
+            initDashboard();
+        }
+
+        function switchTab(tabName) {
+            document.getElementById('view-dashboard').classList.toggle('hidden', tabName !== 'dashboard');
+            document.getElementById('view-statistics').classList.toggle('hidden', tabName !== 'statistics');
+            document.getElementById('view-markets').classList.toggle('hidden', tabName !== 'markets');
+
+            const activeTabClass = "px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-slate-950 transition";
+            const inactiveTabClass = "px-4 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
+
+            document.getElementById('tab-dashboard').className = tabName === 'dashboard' ? activeTabClass : inactiveTabClass;
+            document.getElementById('tab-statistics').className = tabName === 'statistics' ? activeTabClass : inactiveTabClass;
+            document.getElementById('tab-markets').className = tabName === 'markets' ? activeTabClass : inactiveTabClass;
+
+            if (tabName === 'statistics') {
+                renderStatisticsPage();
+            } else if (tabName === 'markets') {
+                renderMarketsPage();
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('valuebet_tracker_data_v2', JSON.stringify(betsData));
+        }
+
+        function openModal() {
+            document.getElementById('betModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('betModal').classList.add('hidden');
+        }
+
+        function populateFiltersDropdowns() {
+            const yearSelect = document.getElementById('filterYear');
+            const currentSelectedYear = yearSelect.value;
+            const years = [...new Set(betsData.map(b => b.date ? String(b.date).substring(0, 4) : '').filter(y => y !== ''))].sort().reverse();
+            
+            yearSelect.innerHTML = '<option value="Tutti">Tutti</option>';
+            years.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                yearSelect.appendChild(opt);
+            });
+            if (years.includes(currentSelectedYear)) yearSelect.value = currentSelectedYear;
+
+            const leagueSelect = document.getElementById('filterLeague');
+            const currentSelectedLeague = leagueSelect.value;
+            const leagues = [...new Set(betsData.map(b => b.league ? String(b.league).trim() : 'Altro').filter(l => l !== ''))].sort();
+
+            leagueSelect.innerHTML = '<option value="Tutti">Tutti i Campionati</option>';
+            leagues.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l;
+                opt.textContent = l;
+                leagueSelect.appendChild(opt);
+            });
+            if (leagues.includes(currentSelectedLeague)) leagueSelect.value = currentSelectedLeague;
+        }
+
+        function addNewBet(event) {
+            event.preventDefault();
+
+            const date = document.getElementById('inputDate').value;
+            const league = document.getElementById('inputLeague').value;
+            const book = document.getElementById('inputBook').value;
+            const match = document.getElementById('inputMatch').value;
+            const bet = document.getElementById('inputBet').value;
+            const stake = parseFloat(document.getElementById('inputStake').value) || 0;
+            const odds = parseFloat(document.getElementById('inputOdds').value) || 0;
+            const market = parseFloat(document.getElementById('inputMarket').value) || 0;
+            const result = document.getElementById('inputResult').value;
+            const profit = parseFloat(document.getElementById('inputProfit').value) || 0;
+
+            let yieldPct = market > 0 ? ((odds / market) - 1) * 100 : 0;
+            let yieldEur = stake * (yieldPct / 100);
+
+            const newEntry = {
+                date: date,
+                league: league,
+                book: book,
+                match: match,
+                bet: bet,
+                stake: stake,
+                odds: odds,
+                market: market,
+                yieldPct: yieldPct,
+                yieldEur: yieldEur,
+                result: result,
+                profit: profit
+            };
+
+            betsData.unshift(newEntry);
+            saveToLocalStorage();
+            closeModal();
+            document.getElementById('newBetForm').reset();
+            document.getElementById('inputDate').valueAsDate = new Date();
+
+            populateFiltersDropdowns();
+            initDashboard();
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('fileNameDisplay').innerText = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                    parseRowsAndSetData(jsonRows);
+                } catch (error) {
+                    console.error("Errore nella lettura del file:", error);
+                    alert("Si è verificato un errore durante la lettura del file Excel.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function exportToExcel() {
+            if (betsData.length === 0) {
+                alert("Nessun dato da esportare.");
+                return;
+            }
+
+            const exportRows = [
+                ['Data e Ora', 'Campionato', 'Bookmaker', 'Partita', 'Scommessa', 'Importo Puntata', 'Rendimento Atteso (%)', 'Quota Punta', 'Quota Mercato', 'Abbinato', 'Risultato', 'Guadagno Reale', 'Rendimento Atteso (€)']
+            ];
+
+            betsData.forEach(b => {
+                exportRows.push([
+                    b.date, b.league, b.book, b.match, b.bet, b.stake, b.yieldPct, b.odds, b.market, b.stake, b.result, b.profit, b.yieldEur
+                ]);
+            });
+
+            const worksheet = XLSX.utils.aoa_to_sheet(exportRows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "lista scommesse");
+            XLSX.writeFile(workbook, "Elenco_ValueBet_Campionati.xlsx");
+        }
+
+        function printReport() {
+            window.print();
+        }
+
+        function initDashboard() {
+            applyFilters();
+        }
+
+        function getFilteredData() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const selectedLeague = document.getElementById('filterLeague').value;
+            const selectedYear = document.getElementById('filterYear').value;
+            const selectedMonth = document.getElementById('filterMonth').value;
+            const selectedOddsRange = document.getElementById('filterOddsRange')?.value || 'Tutti';
+            const selectedEvRange = document.getElementById('filterEvRange')?.value || 'Tutti';
+
+            return betsData.filter(b => {
+                const matchStr = b.match ? String(b.match).toLowerCase() : '';
+                const betStr = b.bet ? String(b.bet).toLowerCase() : '';
+                const leagueStr = b.league ? String(b.league).toLowerCase() : '';
+
+                const matchesQuery = matchStr.includes(query) || betStr.includes(query) || leagueStr.includes(query);
+                const matchesStatus = currentFilter === 'Tutti' || b.result === currentFilter;
+                
+                const bLeague = b.league ? String(b.league).trim() : 'Altro';
+                const bYear = b.date ? String(b.date).substring(0, 4) : '';
+                const bMonth = b.date ? String(b.date).substring(5, 7) : '';
+
+                const matchesLeague = selectedLeague === 'Tutti' || bLeague === selectedLeague;
+                const matchesYear = selectedYear === 'Tutti' || bYear === selectedYear;
+                const matchesMonth = selectedMonth === 'Tutti' || bMonth === selectedMonth;
+
+                // Filtro Fascia Quota (<1.50, 1.51-1.79, >1.80)
+                let matchesOdds = true;
+                if (selectedOddsRange === 'bassa') {
+                    matchesOdds = b.odds < 1.50;
+                } else if (selectedOddsRange === 'media') {
+                    matchesOdds = b.odds >= 1.51 && b.odds <= 1.79;
+                } else if (selectedOddsRange === 'alta') {
+                    matchesOdds = b.odds > 1.80;
+                }
+
+                // Filtro Fascia EV
+                let matchesEv = true;
+                const evVal = b.yieldPct || 0;
+                if (selectedEvRange === 'basso') {
+                    matchesEv = evVal < 3;
+                } else if (selectedEvRange === 'medio') {
+                    matchesEv = evVal >= 3 && evVal <= 7;
+                } else if (selectedEvRange === 'alto') {
+                    matchesEv = evVal > 7;
+                }
+
+                return matchesQuery && matchesStatus && matchesLeague && matchesYear && matchesMonth && matchesOdds && matchesEv;
+            });
+        }
+
+        function applyFilters() {
+            const filtered = getFilteredData();
+            
+            const totalStaked = filtered.reduce((acc, curr) => acc + curr.stake, 0);
+            const totalProfit = filtered.reduce((acc, curr) => acc + curr.profit, 0);
+            const totalExpected = filtered.reduce((acc, curr) => acc + curr.yieldEur, 0);
+            const avgYield = filtered.length > 0 ? (filtered.reduce((acc, curr) => acc + curr.yieldPct, 0) / filtered.length).toFixed(1) : 0;
+            const roiVal = totalStaked > 0 ? (totalProfit / totalStaked) * 100 : 0;
+
+            document.getElementById('kpiTotalStaked').innerText = `€ ${totalStaked.toLocaleString('it-IT', {minimumFractionDigits: 2})}`;
+            document.getElementById('kpiCountText').innerHTML = `<i class="fa-solid fa-arrow-up mr-1"></i> ${filtered.length} scommesse visualizzate`;
+            
+            const profitEl = document.getElementById('kpiTotalProfit');
+            profitEl.innerText = `${totalProfit >= 0 ? '+' : ''}€ ${totalProfit.toLocaleString('it-IT', {minimumFractionDigits: 2})}`;
+            profitEl.className = `text-2xl font-extrabold mt-2 ${totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+            document.getElementById('kpiExpectedProfit').innerText = `+€ ${totalExpected.toLocaleString('it-IT', {minimumFractionDigits: 2})}`;
+            document.getElementById('kpiExpectedYield').innerText = `${avgYield}%`;
+
+            const roiEl = document.getElementById('kpiRoi');
+            roiEl.innerText = `${roiVal >= 0 ? '+' : ''}${roiVal.toFixed(2)}%`;
+            roiEl.className = `text-2xl font-extrabold mt-2 ${roiVal >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+            renderTable(filtered);
+            renderCharts(filtered);
+        }
+
+        function renderCharts(data) {
+            const labels = data.map((_, index) => `#${index + 1}`);
+            
+            let cumProfit = 0;
+            let cumExpected = 0;
+            const realProfitCum = [];
+            const expectedProfitCum = [];
+
+            const chronologicalData = [...data].reverse();
+
+            chronologicalData.forEach(item => {
+                cumProfit += item.profit;
+                cumExpected += item.yieldEur;
+                realProfitCum.push(cumProfit);
+                expectedProfitCum.push(cumExpected);
+            });
+
+            const ctxTime = document.getElementById('timeSeriesChart').getContext('2d');
+            if (timeChart) timeChart.destroy();
+            timeChart = new Chart(ctxTime, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Guadagno Reale Cumulato (€)',
+                            data: realProfitCum,
+                            borderColor: '#34d399',
+                            backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                            fill: true,
+                            tension: 0.1,
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Rendimento Atteso Cumulato (€)',
+                            data: expectedProfitCum,
+                            borderColor: '#60a5fa',
+                            backgroundColor: 'rgba(96, 165, 250, 0.05)',
+                            fill: true,
+                            tension: 0.1,
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 15 }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+                    }
+                }
+            });
+
+            const monthlyMap = {};
+            const leagueMap = {};
+            const bookmakerMap = {};
+            const marketMap = {};
+
+            data.forEach(item => {
+                let monthKey = item.date ? String(item.date).substring(0, 7) : 'Altro';
+                let leagueKey = item.league ? String(item.league).trim() : 'Altro';
+                let bookKey = item.book ? String(item.book).toUpperCase() : 'ALTRO';
+                let betKey = item.bet ? String(item.bet).toUpperCase() : 'ALTRO';
+
+                if (!monthlyMap[monthKey]) monthlyMap[monthKey] = 0;
+                monthlyMap[monthKey] += item.profit;
+
+                if (!leagueMap[leagueKey]) leagueMap[leagueKey] = 0;
+                leagueMap[leagueKey] += item.profit;
+
+                if (!bookmakerMap[bookKey]) bookmakerMap[bookKey] = 0;
+                bookmakerMap[bookKey] += item.profit;
+
+                if (!marketMap[betKey]) marketMap[betKey] = 0;
+                marketMap[betKey] += item.profit;
+            });
+
+            const createBarChart = (ctxId, chartInstance, keys, values, horizontal = false) => {
+                const ctx = document.getElementById(ctxId).getContext('2d');
+                if (chartInstance) chartInstance.destroy();
+                return new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: keys,
+                        datasets: [{
+                            label: 'Profitto (€)',
+                            data: values,
+                            backgroundColor: values.map(v => v >= 0 ? '#34d399' : '#f87171'),
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        indexAxis: horizontal ? 'y' : 'x',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
+                            y: { ticks: { color: '#64748b' }, grid: { display: false } }
+                        }
+                    }
+                });
+            };
+
+            const sortedMonths = Object.keys(monthlyMap).sort();
+            monthlyChart = createBarChart('monthlyChart', monthlyChart, sortedMonths, sortedMonths.map(m => monthlyMap[m]));
+
+            const sortedLeagues = Object.keys(leagueMap).sort((a, b) => leagueMap[b] - leagueMap[a]);
+            leagueChart = createBarChart('leagueChart', leagueChart, sortedLeagues, sortedLeagues.map(l => leagueMap[l]));
+
+            const sortedBooks = Object.keys(bookmakerMap).sort();
+            bookmakerChart = createBarChart('bookmakerChart', bookmakerChart, sortedBooks, sortedBooks.map(b => bookmakerMap[b]));
+
+            const sortedMarkets = Object.keys(marketMap).sort((a, b) => marketMap[b] - marketMap[a]).slice(0, 6);
+            marketTypeChart = createBarChart('marketTypeChart', marketTypeChart, sortedMarkets, sortedMarkets.map(m => marketMap[m]), true);
+        }
+
+        function renderStatisticsPage() {
+            if (betsData.length === 0) return;
+
+            // Statistiche Globali
+            const totalBets = betsData.length;
+            const wins = betsData.filter(b => b.result === 'Vinta' || b.result === 'Metà Vinta').length;
+            const winRate = ((wins / totalBets) * 100).toFixed(1);
+            const avgOdds = (betsData.reduce((acc, b) => acc + b.odds, 0) / totalBets).toFixed(2);
+            const avgMarket = (betsData.reduce((acc, b) => acc + b.market, 0) / totalBets).toFixed(2);
+
+            document.getElementById('statWinRate').innerText = `${winRate}%`;
+            document.getElementById('statAvgOdds').innerText = avgOdds;
+            document.getElementById('statAvgMarket').innerText = avgMarket;
+            document.getElementById('statTotalBets').innerText = totalBets;
+
+            // Breakdown Giorno della Settimana
+            const daysNames = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+            const dayOrder = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
+            const dayMap = {};
+            dayOrder.forEach(d => { dayMap[d] = { count: 0, staked: 0, profit: 0, ev: 0 }; });
+
+            betsData.forEach(b => {
+                if (!b.date) return;
+                const dObj = new Date(b.date);
+                if (isNaN(dObj.getTime())) return;
+                const dayName = daysNames[dObj.getDay()];
+                if (dayMap[dayName]) {
+                    dayMap[dayName].count++;
+                    dayMap[dayName].staked += b.stake || 0;
+                    dayMap[dayName].profit += b.profit || 0;
+                    dayMap[dayName].ev += b.yieldEur || 0;
+                }
+            });
+
+            const dayTbody = document.getElementById('dayOfWeekTableBody');
+            dayTbody.innerHTML = '';
+            dayOrder.forEach(dayName => {
+                const item = dayMap[dayName];
+                const roi = item.staked > 0 ? ((item.profit / item.staked) * 100).toFixed(2) : 0;
+                dayTbody.innerHTML += `
+                    <tr class="hover:bg-slate-700/30 transition">
+                        <td class="py-3 px-4 font-bold text-white">${dayName}</td>
+                        <td class="py-3 px-4 text-center">${item.count}</td>
+                        <td class="py-3 px-4 text-right">€ ${item.staked.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right font-bold ${item.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}">€ ${item.profit.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right text-blue-400">€ ${item.ev.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right font-semibold ${roi >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${roi}%</td>
+                    </tr>
+                `;
+            });
+
+            // Breakdown Campionato
+            const leagueMap = {};
+            betsData.forEach(b => {
+                const lk = b.league ? String(b.league).trim() : 'Altro';
+                if (!leagueMap[lk]) leagueMap[lk] = { count: 0, staked: 0, profit: 0, ev: 0 };
+                leagueMap[lk].count++;
+                leagueMap[lk].staked += b.stake;
+                leagueMap[lk].profit += b.profit;
+                leagueMap[lk].ev += b.yieldEur;
+            });
+
+            const leagueTbody = document.getElementById('leagueTableBody');
+            leagueTbody.innerHTML = '';
+            Object.keys(leagueMap).sort((a, b) => leagueMap[b].profit - leagueMap[a].profit).forEach(lk => {
+                const item = leagueMap[lk];
+                const roi = item.staked > 0 ? ((item.profit / item.staked) * 100).toFixed(2) : 0;
+                leagueTbody.innerHTML += `
+                    <tr class="hover:bg-slate-700/30 transition">
+                        <td class="py-3 px-4 font-bold text-white">${lk}</td>
+                        <td class="py-3 px-4 text-center">${item.count}</td>
+                        <td class="py-3 px-4 text-right">€ ${item.staked.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right font-bold ${item.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}">€ ${item.profit.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right text-blue-400">€ ${item.ev.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right font-semibold ${roi >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${roi}%</td>
+                    </tr>
+                `;
+            });
+
+            // Breakdown Bookmaker
+            const bookMap = {};
+            betsData.forEach(b => {
+                const bk = b.book ? String(b.book).toUpperCase() : 'ALTRO';
+                if (!bookMap[bk]) bookMap[bk] = { count: 0, staked: 0, profit: 0 };
+                bookMap[bk].count++;
+                bookMap[bk].staked += b.stake;
+                bookMap[bk].profit += b.profit;
+            });
+
+            const bookTbody = document.getElementById('bookmakerTableBody');
+            bookTbody.innerHTML = '';
+            Object.keys(bookMap).forEach(bk => {
+                const item = bookMap[bk];
+                const roi = item.staked > 0 ? ((item.profit / item.staked) * 100).toFixed(2) : 0;
+                bookTbody.innerHTML += `
+                    <tr class="hover:bg-slate-700/30 transition">
+                        <td class="py-3 px-3 font-bold text-white">${bk}</td>
+                        <td class="py-3 px-3 text-center">${item.count}</td>
+                        <td class="py-3 px-3 text-right">€ ${item.staked.toFixed(2)}</td>
+                        <td class="py-3 px-3 text-right font-bold ${item.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}">€ ${item.profit.toFixed(2)}</td>
+                        <td class="py-3 px-3 text-right font-semibold ${roi >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${roi}%</td>
+                    </tr>
+                `;
+            });
+
+            // Breakdown Mercato
+            const marketMap = {};
+            betsData.forEach(b => {
+                const mk = b.bet ? String(b.bet).toUpperCase() : 'ALTRO';
+                if (!marketMap[mk]) marketMap[mk] = { count: 0, staked: 0, profit: 0 };
+                marketMap[mk].count++;
+                marketMap[mk].staked += b.stake;
+                marketMap[mk].profit += b.profit;
+            });
+
+            const sortedMk = Object.keys(marketMap).sort((a, b) => marketMap[b].profit - marketMap[a].profit).slice(0, 10);
+            const marketTbody = document.getElementById('marketTableBody');
+            marketTbody.innerHTML = '';
+            sortedMk.forEach(mk => {
+                const item = marketMap[mk];
+                const roi = item.staked > 0 ? ((item.profit / item.staked) * 100).toFixed(2) : 0;
+                marketTbody.innerHTML += `
+                    <tr class="hover:bg-slate-700/30 transition">
+                        <td class="py-3 px-3 font-medium text-white">${mk}</td>
+                        <td class="py-3 px-3 text-center">${item.count}</td>
+                        <td class="py-3 px-3 text-right">€ ${item.staked.toFixed(2)}</td>
+                        <td class="py-3 px-3 text-right font-bold ${item.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}">€ ${item.profit.toFixed(2)}</td>
+                        <td class="py-3 px-3 text-right font-semibold ${roi >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${roi}%</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderMarketsPage() {
+            if (betsData.length === 0) return;
+
+            const searchQuery = (document.getElementById('searchMarketInput')?.value || '').toLowerCase();
+
+            const detailedMarketMap = {};
+            betsData.forEach(b => {
+                const mk = b.bet ? String(b.bet).toUpperCase() : 'ALTRO';
+                if (!detailedMarketMap[mk]) {
+                    detailedMarketMap[mk] = { count: 0, wins: 0, staked: 0, profit: 0, oddsSum: 0, yieldPctSum: 0 };
+                }
+                detailedMarketMap[mk].count++;
+                if (b.result === 'Vinta' || b.result === 'Metà Vinta') {
+                    detailedMarketMap[mk].wins++;
+                }
+                detailedMarketMap[mk].staked += b.stake;
+                detailedMarketMap[mk].profit += b.profit;
+                detailedMarketMap[mk].oddsSum += b.odds;
+                
+                let currentYieldPct = b.yieldPct;
+                if (currentYieldPct === undefined || currentYieldPct === null || isNaN(currentYieldPct)) {
+                    currentYieldPct = b.market > 0 ? ((b.odds / b.market) - 1) * 100 : 0;
+                }
+                detailedMarketMap[mk].yieldPctSum += currentYieldPct;
+            });
+
+            const detailedMarketTbody = document.getElementById('detailedMarketTableBody');
+            detailedMarketTbody.innerHTML = '';
+            
+            const sortedMarketsKeys = Object.keys(detailedMarketMap)
+                .filter(mk => mk.toLowerCase().includes(searchQuery))
+                .sort((a, b) => detailedMarketMap[b].profit - detailedMarketMap[a].profit);
+
+            if (sortedMarketsKeys.length === 0) {
+                detailedMarketTbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-500">Nessun mercato trovato.</td></tr>`;
+                return;
+            }
+
+            sortedMarketsKeys.forEach(mk => {
+                const item = detailedMarketMap[mk];
+                const winRateM = ((item.wins / item.count) * 100).toFixed(1);
+                const avgEvPctM = (item.yieldPctSum / item.count).toFixed(2);
+                const avgOddsM = (item.oddsSum / item.count).toFixed(2);
+                const roiM = item.staked > 0 ? ((item.profit / item.staked) * 100).toFixed(2) : 0;
+                
+                detailedMarketTbody.innerHTML += `
+                    <tr class="hover:bg-slate-700/30 transition">
+                        <td class="py-3 px-4 font-bold text-white">${mk}</td>
+                        <td class="py-3 px-4 text-center">${item.count}</td>
+                        <td class="py-3 px-4 text-center text-slate-300">${winRateM}%</td>
+                        <td class="py-3 px-4 text-center text-purple-400 font-semibold">+${avgEvPctM}%</td>
+                        <td class="py-3 px-4 text-right text-slate-300">${avgOddsM}</td>
+                        <td class="py-3 px-4 text-right">€ ${item.staked.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right font-bold ${item.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}">€ ${item.profit.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right font-semibold ${roiM >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${roiM}%</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderTable(dataToRender) {
+            const tbody = document.getElementById('betsTableBody');
+            tbody.innerHTML = '';
+
+            if (dataToRender.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="12" class="text-center py-8 text-slate-500">Nessun record trovato con i filtri selezionati.</td></tr>`;
+                document.getElementById('rowCount').innerText = `0 record`;
+                return;
+            }
+
+            dataToRender.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-700/30 transition";
+                
+                let badgeClass = 'bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-semibold';
+                if (row.result === 'Vinta' || row.result === 'Metà Vinta') {
+                    badgeClass = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold';
+                } else if (row.result === 'Persa' || row.result === 'Metà Persa') {
+                    badgeClass = 'bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full font-semibold';
+                } else if (row.result === 'Rimborso' || row.result === 'Void') {
+                    badgeClass = 'bg-slate-500/10 text-slate-400 border border-slate-500/20 px-2 py-0.5 rounded-full font-semibold';
+                }
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-slate-400">${row.date || ''}</td>
+                    <td class="py-3 px-4 font-semibold text-emerald-300">${row.league || 'Altro'}</td>
+                    <td class="py-3 px-4 font-medium">${row.book || ''}</td>
+                    <td class="py-3 px-4 text-white font-medium">${row.match || ''}</td>
+                    <td class="py-3 px-4 text-slate-300">${row.bet || ''}</td>
+                    <td class="py-3 px-4 text-right">€ ${(row.stake || 0).toFixed(2)}</td>
+                    <td class="py-3 px-4 text-right">${row.odds > 0 ? row.odds.toFixed(2) : '--'}</td>
+                    <td class="py-3 px-4 text-right">${row.market > 0 ? row.market.toFixed(2) : '--'}</td>
+                    <td class="py-3 px-4 text-right text-purple-400 font-semibold">+${(row.yieldPct || 0).toFixed(2)}%</td>
+                    <td class="py-3 px-4 text-right text-blue-400 font-semibold">+€ ${(row.yieldEur || 0).toFixed(2)}</td>
+                    <td class="py-3 px-4 text-center"><span class="${badgeClass}">${row.result || 'In attesa'}</span></td>
+                    <td class="py-3 px-4 text-right font-bold ${(row.profit || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}">€ ${(row.profit || 0).toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('rowCount').innerText = `Visualizzazione di ${dataToRender.length} su ${betsData.length} record`;
+        }
+
+        function filterStatus(status) {
+            currentFilter = status;
+            document.getElementById('btn-all').className = status === 'Tutti' ? "px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500 text-slate-950 transition" : "px-3 py-2 text-xs font-semibold rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition";
+            document.getElementById('btn-win').className = status === 'Vinta' ? "px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500 text-slate-950 transition" : "px-3 py-2 text-xs font-semibold rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition";
+            document.getElementById('btn-loss').className = status === 'Persa' ? "px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500 text-slate-950 transition" : "px-3 py-2 text-xs font-semibold rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition";
+
+            applyFilters();
+        }
+    </script>
+</body>
+</html>
